@@ -86,11 +86,30 @@ attachments/
 
 ## Development
 
-### Run tests
+### Run unit tests
 
 ```bash
 tools\tests.bat
 ```
+
+### Run integration tests
+
+Integration tests require a real Gitea server with a test repository.
+
+1. Create a test repository on your Gitea server with:
+   - An issue with known title and body
+   - 2 attachments on the issue (1 PNG, 1 JPG)
+   - 1 comment on the issue
+
+2. Copy the example config and adjust values:
+   ```bash
+   copy tests\test_config.example.json tests\test_config.json
+   ```
+
+3. Run integration tests:
+   ```bash
+   uv run pytest tests/test_integration.py -v
+   ```
 
 ### Update dependencies
 

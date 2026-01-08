@@ -1,0 +1,9 @@
+{
+    "test_repo_url": "https://YOUR-GIT_SERVER/USER/test-git-issue-to-markdown",
+    "test_issue_number": 1,
+    "expected_issue_title": "Test Issue for Integration Tests",
+    "expected_issue_body": "This is a test issue body with known content.",
+    "expected_comment_text": "This is a test comment.",
+    "expected_issue_attachment_count": 2,
+    "expected_comment_attachment_count": 0
+}
