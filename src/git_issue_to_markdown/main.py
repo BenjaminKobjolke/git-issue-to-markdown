@@ -6,6 +6,8 @@ from pathlib import Path
 
 from .config.settings import Settings
 from .gitea_client import (
+    add_comment,
+    close_issue,
     create_client,
     download_attachment_file,
     get_comment_attachments,
@@ -13,6 +15,7 @@ from .gitea_client import (
     get_open_issues,
     is_image_file,
     parse_repo_url,
+    reopen_issue,
 )
 from .markdown_writer import get_existing_issue_ids, write_issues
 
@@ -25,19 +28,48 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(
         prog="git-issue-to-markdown",
-        description="Sync Gitea issues to a markdown file",
+        description="Sync Gitea issues to a markdown file, or perform actions on issues",
     )
     parser.add_argument("repo_url", help="Gitea repository URL")
-    parser.add_argument("target_file", help="Target markdown file path")
+    parser.add_argument(
+        "target_file",
+        nargs="?",
+        help="Target markdown file path (required for sync, optional for actions)",
+    )
     parser.add_argument(
         "--complete",
         metavar="FILE",
         help="File containing completed issues (issues marked here will be excluded)",
     )
+    parser.add_argument(
+        "--comment",
+        nargs=2,
+        metavar=("ISSUE", "TEXT"),
+        help="Add a comment to an issue (e.g., --comment 123 'Fixed in commit abc')",
+    )
+    parser.add_argument(
+        "--close",
+        type=int,
+        metavar="ISSUE",
+        help="Close an issue by number",
+    )
+    parser.add_argument(
+        "--reopen",
+        type=int,
+        metavar="ISSUE",
+        help="Reopen a closed issue by number",
+    )
     args = parser.parse_args()
 
+    # Check if we're performing actions instead of syncing
+    has_actions = args.comment or args.close or args.reopen
+
+    # Require target_file for sync mode (no actions)
+    if not has_actions and not args.target_file:
+        parser.error("target_file is required when not using --comment, --close, or --reopen")
+
     repo_url = args.repo_url
-    target_file = Path(args.target_file)
+    target_file = Path(args.target_file) if args.target_file else None
 
     try:
         # Load settings
@@ -52,6 +84,41 @@ def main() -> int:
         print(f"Connecting to {settings.gitea_url}...")
         gitea = create_client(settings)
         print(f"Gitea version: {gitea.get_version()}")
+
+        # Handle actions if provided
+        if has_actions:
+            success = True
+
+            # Add comment
+            if args.comment:
+                issue_num = int(args.comment[0])
+                comment_text = args.comment[1]
+                print(f"Adding comment to issue #{issue_num}...")
+                if add_comment(gitea, owner, repo_name, issue_num, comment_text, settings.token):
+                    print(f"Comment added to issue #{issue_num}")
+                else:
+                    print(f"Failed to add comment to issue #{issue_num}")
+                    success = False
+
+            # Close issue
+            if args.close:
+                print(f"Closing issue #{args.close}...")
+                if close_issue(gitea, owner, repo_name, args.close, settings.token):
+                    print(f"Issue #{args.close} closed")
+                else:
+                    print(f"Failed to close issue #{args.close}")
+                    success = False
+
+            # Reopen issue
+            if args.reopen:
+                print(f"Reopening issue #{args.reopen}...")
+                if reopen_issue(gitea, owner, repo_name, args.reopen, settings.token):
+                    print(f"Issue #{args.reopen} reopened")
+                else:
+                    print(f"Failed to reopen issue #{args.reopen}")
+                    success = False
+
+            return 0 if success else 1
 
         # Fetch open issues
         print("Fetching open issues...")

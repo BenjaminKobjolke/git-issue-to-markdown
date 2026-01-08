@@ -210,3 +210,100 @@ def is_image_file(filename: str) -> bool:
         True if the file is an image, False otherwise.
     """
     return Path(filename).suffix.lower() in IMAGE_EXTENSIONS
+
+
+def add_comment(
+    gitea: Gitea, owner: str, repo_name: str, issue_number: int, body: str, token: str
+) -> bool:
+    """Add a comment to an issue.
+
+    Args:
+        gitea: Gitea client instance.
+        owner: Repository owner.
+        repo_name: Repository name.
+        issue_number: Issue number.
+        body: Comment text.
+        token: API token for authentication.
+
+    Returns:
+        True if comment was added successfully, False otherwise.
+    """
+    endpoint = f"{gitea.url}/api/v1/repos/{owner}/{repo_name}/issues/{issue_number}/comments"
+    try:
+        response = gitea.requests.post(
+            endpoint,
+            json={"body": body},
+            headers={"Authorization": f"token {token}"}
+        )
+        return bool(response.status_code == 201)
+    except Exception as e:
+        print(f"Error adding comment to issue #{issue_number}: {e}")
+        return False
+
+
+def _update_issue_state(
+    gitea: Gitea, owner: str, repo_name: str, issue_number: int, token: str, state: str
+) -> bool:
+    """Update an issue's state (internal helper).
+
+    Args:
+        gitea: Gitea client instance.
+        owner: Repository owner.
+        repo_name: Repository name.
+        issue_number: Issue number.
+        token: API token for authentication.
+        state: New state ('open' or 'closed').
+
+    Returns:
+        True if issue state was updated successfully, False otherwise.
+    """
+    endpoint = f"{gitea.url}/api/v1/repos/{owner}/{repo_name}/issues/{issue_number}"
+    action = "closing" if state == "closed" else "reopening"
+    try:
+        response = gitea.requests.patch(
+            endpoint,
+            json={"state": state},
+            headers={"Authorization": f"token {token}"}
+        )
+        if response.status_code not in (200, 201):
+            print(f"  API Response: {response.status_code} - {response.text}")
+        return bool(response.status_code in (200, 201))
+    except Exception as e:
+        print(f"Error {action} issue #{issue_number}: {e}")
+        return False
+
+
+def close_issue(
+    gitea: Gitea, owner: str, repo_name: str, issue_number: int, token: str
+) -> bool:
+    """Close an issue.
+
+    Args:
+        gitea: Gitea client instance.
+        owner: Repository owner.
+        repo_name: Repository name.
+        issue_number: Issue number.
+        token: API token for authentication.
+
+    Returns:
+        True if issue was closed successfully, False otherwise.
+    """
+    return _update_issue_state(gitea, owner, repo_name, issue_number, token, "closed")
+
+
+def reopen_issue(
+    gitea: Gitea, owner: str, repo_name: str, issue_number: int, token: str
+) -> bool:
+    """Reopen a closed issue.
+
+    Args:
+        gitea: Gitea client instance.
+        owner: Repository owner.
+        repo_name: Repository name.
+        issue_number: Issue number.
+        token: API token for authentication.
+
+    Returns:
+        True if issue was reopened successfully, False otherwise.
+    """
+    return _update_issue_state(gitea, owner, repo_name, issue_number, token, "open")
