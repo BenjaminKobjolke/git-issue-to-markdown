@@ -7,7 +7,8 @@ from pathlib import Path
 from .config.settings import Settings
 from .gitea_client import (
     create_client,
-    download_attachment,
+    download_attachment_file,
+    get_comment_attachments,
     get_issue_attachments,
     get_open_issues,
     is_image_file,
@@ -81,44 +82,79 @@ def main() -> int:
         total_comments = sum(len(c) for c in comments_map.values())
         print(f"Found {total_comments} comment(s) across {len(comments_map)} issue(s)")
 
-        # Fetch and download attachments for each issue
+        # Fetch and download attachments for each issue (from issue body and comments)
         print("Fetching attachments...")
         attachments_map: dict[int, list[dict]] = {}
         attachments_dir = target_file.parent / "attachments"
-        total_attachments = 0
+        total_issue_attachments = 0
+        total_comment_attachments = 0
 
         for issue in issues:
-            raw_attachments = get_issue_attachments(gitea, owner, repo_name, issue.number)
-            if not raw_attachments:
-                continue
-
             issue_attachments: list[dict] = []
             issue_dir = attachments_dir / f"issue_{issue.number}"
 
+            # Fetch attachments from the issue itself
+            raw_attachments = get_issue_attachments(gitea, owner, repo_name, issue.number)
             for att in raw_attachments:
                 name = att.get("name", "attachment")
-                download_url = att.get("browser_download_url", "")
+                browser_download_url = att.get("browser_download_url", "")
 
-                if not download_url:
+                if not browser_download_url:
+                    print(f"    Warning: No download URL found for '{name}'")
                     continue
 
-                # Download the file
+                # Download the file using browser_download_url with token auth
                 save_path = issue_dir / name
-                if download_attachment(gitea, download_url, save_path):
-                    # Build relative path from markdown file location
-                    rel_path = f"./attachments/issue_{issue.number}/{name}"
+                success, actual_path = download_attachment_file(gitea, browser_download_url, settings.token, save_path)
+                if success:
+                    # Build relative path from markdown file location (use actual filename)
+                    actual_name = actual_path.name
+                    rel_path = f"./attachments/issue_{issue.number}/{actual_name}"
                     issue_attachments.append({
-                        "name": name,
+                        "name": actual_name,
                         "relative_path": rel_path,
-                        "is_image": is_image_file(name),
+                        "is_image": is_image_file(actual_name),
                     })
-                    total_attachments += 1
+                    total_issue_attachments += 1
+
+            # Fetch attachments from comments
+            issue_comments = comments_map.get(issue.number, [])
+            for comment in issue_comments:
+                comment_id = comment.id if hasattr(comment, 'id') else comment.get('id')
+                if not comment_id:
+                    continue
+
+                comment_attachments_list = get_comment_attachments(gitea, owner, repo_name, comment_id)
+                if comment_attachments_list:
+                    print(f"  Comment #{comment_id}: Found {len(comment_attachments_list)} attachment(s)")
+
+                for att in comment_attachments_list:
+                    name = att.get("name", "attachment")
+                    browser_download_url = att.get("browser_download_url", "")
+
+                    if not browser_download_url:
+                        print(f"    Warning: No download URL found for comment attachment '{name}'")
+                        continue
+
+                    # Download the file using browser_download_url with token auth
+                    save_path = issue_dir / f"comment_{comment_id}" / name
+                    success, actual_path = download_attachment_file(gitea, browser_download_url, settings.token, save_path)
+                    if success:
+                        actual_name = actual_path.name
+                        rel_path = f"./attachments/issue_{issue.number}/comment_{comment_id}/{actual_name}"
+                        issue_attachments.append({
+                            "name": actual_name,
+                            "relative_path": rel_path,
+                            "is_image": is_image_file(actual_name),
+                        })
+                        total_comment_attachments += 1
 
             if issue_attachments:
                 attachments_map[issue.number] = issue_attachments
 
+        total_attachments = total_issue_attachments + total_comment_attachments
         if total_attachments > 0:
-            print(f"Downloaded {total_attachments} attachment(s)")
+            print(f"Downloaded {total_attachments} attachment(s) ({total_issue_attachments} from issues, {total_comment_attachments} from comments)")
 
         # Check for existing issues in the markdown file
         existing_ids = get_existing_issue_ids(target_file)
