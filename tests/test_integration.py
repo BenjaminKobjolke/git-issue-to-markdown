@@ -16,12 +16,15 @@ import pytest
 
 from git_issue_to_markdown.config.settings import Settings
 from git_issue_to_markdown.gitea_client import (
+    add_comment,
+    close_issue,
     create_client,
     download_attachment_file,
     get_comment_attachments,
     get_issue_attachments,
     get_open_issues,
     parse_repo_url,
+    reopen_issue,
 )
 
 TEST_CONFIG_PATH = Path(__file__).parent / "test_config.json"
@@ -168,3 +171,71 @@ class TestIntegrationDownload:
             # We expect both .jpg and .png if test data is set up correctly
             # (the test repo should have 1 JPG and 1 PNG)
             assert len(downloaded_extensions) >= 1, "Should download at least one image type"
+
+
+class TestIntegrationIssueActions:
+    """Test issue actions (comment, close, reopen) on real Gitea server.
+
+    These tests modify issue state. They use a separate test issue number
+    (test_action_issue_number) to avoid interfering with other tests.
+    """
+
+    def test_add_comment_to_issue(self, gitea_client, settings: Settings, test_config: dict):
+        """Verify adding a comment to an issue works."""
+        if "test_action_issue_number" not in test_config:
+            pytest.skip("test_action_issue_number not configured")
+
+        owner, repo_name = parse_repo_url(test_config["test_repo_url"])
+        issue_number = test_config["test_action_issue_number"]
+
+        result = add_comment(
+            gitea_client, owner, repo_name, issue_number, "Integration test comment", settings.token
+        )
+
+        assert result is True
+
+    def test_close_and_reopen_issue(self, gitea_client, settings: Settings, test_config: dict):
+        """Verify closing and reopening an issue works."""
+        if "test_action_issue_number" not in test_config:
+            pytest.skip("test_action_issue_number not configured")
+
+        owner, repo_name = parse_repo_url(test_config["test_repo_url"])
+        issue_number = test_config["test_action_issue_number"]
+
+        # Close the issue
+        close_result = close_issue(gitea_client, owner, repo_name, issue_number, settings.token)
+        assert close_result is True
+
+        # Reopen the issue to restore original state
+        reopen_result = reopen_issue(gitea_client, owner, repo_name, issue_number, settings.token)
+        assert reopen_result is True
+
+    def test_add_comment_to_nonexistent_issue_fails(
+        self, gitea_client, settings: Settings, test_config: dict
+    ):
+        """Verify adding comment to non-existent issue returns False."""
+        owner, repo_name = parse_repo_url(test_config["test_repo_url"])
+
+        result = add_comment(gitea_client, owner, repo_name, 999999, "Should fail", settings.token)
+
+        assert result is False
+
+    def test_close_nonexistent_issue_fails(
+        self, gitea_client, settings: Settings, test_config: dict
+    ):
+        """Verify closing non-existent issue returns False."""
+        owner, repo_name = parse_repo_url(test_config["test_repo_url"])
+
+        result = close_issue(gitea_client, owner, repo_name, 999999, settings.token)
+
+        assert result is False
+
+    def test_reopen_nonexistent_issue_fails(
+        self, gitea_client, settings: Settings, test_config: dict
+    ):
+        """Verify reopening non-existent issue returns False."""
+        owner, repo_name = parse_repo_url(test_config["test_repo_url"])
+
+        result = reopen_issue(gitea_client, owner, repo_name, 999999, settings.token)
+
+        assert result is False
