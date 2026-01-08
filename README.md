@@ -9,6 +9,8 @@ CLI tool to fetch open issues from a Gitea repository and add them to a markdown
 - Downloads and embeds attachments (images shown inline)
 - Updates existing issues with latest content
 - Detects duplicates using HTML comment markers
+- Add comments to issues (inline or from file)
+- Close and reopen issues
 
 ## Installation
 
@@ -29,11 +31,13 @@ Edit `config.json` with your Gitea credentials:
 
 ## Usage
 
+### Sync Issues to Markdown
+
 ```bash
 start.bat <repo_url> <target_md_file>
 ```
 
-### Examples
+#### Examples
 
 ```bash
 # Add issues from a repository to a TODO file
@@ -41,6 +45,61 @@ start.bat https://your-gitea-instance.com/USER/PROJECT D:\path\to\TODO.md
 
 # Works with .git suffix too
 start.bat https://your-gitea-instance.com/USER/project.git D:\path\to\TODO.md
+```
+
+### Issue Actions
+
+**Note:** Issue actions require a token with `write:issue` scope.
+
+#### Add Comment
+
+```bash
+# Inline comment
+comment.bat <repo_url> <issue_number> "Your comment text"
+
+# Comment from file (useful for long/multi-line comments)
+comment.bat <repo_url> <issue_number> -file comment.md
+```
+
+#### Close Issue
+
+```bash
+close.bat <repo_url> <issue_number>
+```
+
+#### Reopen Issue
+
+```bash
+reopen.bat <repo_url> <issue_number>
+```
+
+#### Close with Comment
+
+```bash
+# Inline comment
+closewithcomment.bat <repo_url> <issue_number> "Fixed in latest release"
+
+# Comment from file
+closewithcomment.bat <repo_url> <issue_number> -file resolution.md
+```
+
+#### Examples
+
+```bash
+# Add a comment to issue #42
+comment.bat https://your-gitea-instance.com/USER/PROJECT 42 "Working on this"
+
+# Add a detailed comment from file
+comment.bat https://your-gitea-instance.com/USER/PROJECT 42 -file detailed_update.md
+
+# Close issue #42
+close.bat https://your-gitea-instance.com/USER/PROJECT 42
+
+# Reopen issue #42
+reopen.bat https://your-gitea-instance.com/USER/PROJECT 42
+
+# Close issue #42 with a comment
+closewithcomment.bat https://your-gitea-instance.com/USER/PROJECT 42 "Resolved in v1.2.0"
 ```
 
 ## Output Format
