@@ -43,9 +43,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--comment",
-        nargs=2,
-        metavar=("ISSUE", "TEXT"),
-        help="Add a comment to an issue (e.g., --comment 123 'Fixed in commit abc')",
+        nargs="+",
+        metavar="ARGS",
+        help="Add comment: --comment ISSUE TEXT or --comment ISSUE -file PATH",
     )
     parser.add_argument(
         "--close",
@@ -92,7 +92,17 @@ def main() -> int:
             # Add comment
             if args.comment:
                 issue_num = int(args.comment[0])
-                comment_text = args.comment[1]
+
+                # Check if using -file flag
+                if len(args.comment) >= 3 and args.comment[1] == "-file":
+                    file_path = Path(args.comment[2])
+                    if not file_path.exists():
+                        print(f"Error: Comment file not found: {file_path}")
+                        return 1
+                    comment_text = file_path.read_text(encoding="utf-8")
+                else:
+                    comment_text = args.comment[1]
+
                 print(f"Adding comment to issue #{issue_num}...")
                 if add_comment(gitea, owner, repo_name, issue_num, comment_text, settings.token):
                     print(f"Comment added to issue #{issue_num}")
